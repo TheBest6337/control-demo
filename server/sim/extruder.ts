@@ -79,6 +79,9 @@ export class ExtruderSim extends MachineSim {
   pressureGains: Gains = { ...PRESSURE_GAINS };
   zones: Record<Zone, HeatingZone>;
 
+  /** Melt viscosity relative to plain material (masterbatch raises it). */
+  viscosityFactor = 1;
+
   // inverter / screw
   rpm = 0;
   pressure = 0;
@@ -165,7 +168,10 @@ export class ExtruderSim extends MachineSim {
 
   /** Melt pressure for a given screw speed: viscosity drops with temperature. */
   private steadyPressure(rpm: number) {
-    const viscosity = 1.45 * Math.exp(-(this.meltTemperature() - 200) / 45);
+    const viscosity =
+      1.45 *
+      this.viscosityFactor *
+      Math.exp(-(this.meltTemperature() - 200) / 45);
     return Math.max(0, rpm * viscosity);
   }
 

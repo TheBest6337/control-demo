@@ -1,40 +1,47 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 
 type Props = {
   rpm?: number;
   clockwise?: boolean;
 };
 
+// control-demo: the upstream component advanced the angle only when a new rpm
+// value arrived, so the spool jumped in steps (and stopped when the rounded rpm
+// did not change). Here the latest rpm is kept in a ref and the angle advances
+// on every animation frame, written straight to the element's transform:
+// smooth rotation at display rate without re-rendering React.
 export function Spool({ rpm, clockwise }: Props) {
-  const [rotationState, setRotationState] = React.useState({
-    rotations: 0,
-    lastRpm: undefined as number | undefined,
-    lastRpmTime: undefined as number | undefined,
-  });
+  const elementRef = useRef<HTMLDivElement>(null);
+  const rpmRef = useRef(rpm ?? 0);
+  const directionRef = useRef(clockwise ? 1 : -1);
 
   useEffect(() => {
-    if (rpm !== undefined) {
-      const now = Date.now();
-      // Calculate the new rotation based on the RPM and time elapsed
-      const dt = (now - (rotationState.lastRpmTime || now)) / 1000; // Convert ms to seconds
-      const newRotations = ((rpm / 60) * dt) % 1; // Convert RPM to rotations per second
-      setRotationState({
-        rotations: (rotationState.rotations + newRotations) % 1, // Keep it within 0-1
-        lastRpm: rpm,
-        lastRpmTime: now,
-      });
-    }
-  }, [rpm]);
+    rpmRef.current = rpm ?? 0;
+    directionRef.current = clockwise ? 1 : -1;
+  }, [rpm, clockwise]);
 
-  const { rotations } = rotationState;
+  useEffect(() => {
+    let rotations = 0;
+    let last: number | undefined;
+    let frame = requestAnimationFrame(function tick(now) {
+      // cap the step so a background tab does not jump on return
+      const dt = last === undefined ? 0 : Math.min(0.1, (now - last) / 1000);
+      last = now;
+      rotations = (rotations + (rpmRef.current / 60) * dt) % 1;
+      if (elementRef.current) {
+        elementRef.current.style.transform = `rotate(${directionRef.current * rotations * 360}deg)`;
+      }
+      frame = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   return (
     <div className="flex w-full justify-center">
       <div
+        ref={elementRef}
         className="aspect-square h-32"
-        style={{
-          transform: `rotate(${clockwise ? "" : "-"}${rotations * 360}deg)`,
-        }}
+        style={{ willChange: "transform" }}
       >
         <svg
           viewBox="0 0 512 512"

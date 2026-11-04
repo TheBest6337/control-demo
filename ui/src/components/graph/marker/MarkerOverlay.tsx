@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useMemo, useState } from "react";
 import uPlot from "uplot";
-import { TimeSeries } from "@/lib/timeseries";
+import { seriesToUPlotData, TimeSeries } from "@/lib/timeseries";
 import type { Marker } from "@/stores/markerStore";
 
 const MARKER_BOTTOM_EXTENSION_PX = 94;
@@ -99,10 +99,37 @@ function areMarkerPositionsEqual(
   return true;
 }
 
+// control-demo: upstream draws every marker dot at mid-height (Marker.value is
+// never used). Put it on the graph instead: the graph's value at the sample
+// nearest to the marker's timestamp.
+function seriesValueAt(
+  series: TimeSeries | null,
+  timestamp: number,
+): number | null {
+  if (!series) return null;
+  const [xs, ys] = seriesToUPlotData(series.long);
+  if (xs.length === 0) return null;
+  let lo = 0;
+  let hi = xs.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (xs[mid] < timestamp) lo = mid + 1;
+    else hi = mid;
+  }
+  if (
+    lo > 0 &&
+    Math.abs(xs[lo - 1] - timestamp) < Math.abs(xs[lo] - timestamp)
+  ) {
+    lo -= 1;
+  }
+  const y = ys[lo];
+  return typeof y === "number" && Number.isFinite(y) ? y : null;
+}
+
 function buildMarkerPositions(
   plot: uPlot,
   markers: Marker[],
-  _currentTimeSeries: TimeSeries | null,
+  currentTimeSeries: TimeSeries | null,
 ): MarkerPosition[] {
   const bounds = getPlotBounds(plot);
   const markerBottom = getMarkerBottom(bounds);
@@ -115,6 +142,22 @@ function buildMarkerPositions(
     .filter((marker) => marker.timestamp >= xMin && marker.timestamp <= xMax)
     .map((marker) => {
       const markerCenterY = lineTop + (markerBottom - lineTop) / 2;
+      const value = seriesValueAt(currentTimeSeries, marker.timestamp);
+      const scale = plot.series[1]?.scale ?? "y";
+      const valueY =
+        value === null
+          ? markerCenterY
+          : Math.max(
+              lineTop,
+              Math.min(
+                markerBottom,
+                bounds.top +
+                  // the SVG spans the whole card: same offset upstream uses
+                  // to end the marker line at the plot bottom
+                  MARKER_BOTTOM_EXTENSION_PX +
+                  plot.valToPos(value, scale, false),
+              ),
+            );
 
       return {
         key: `${marker.timestamp}-${marker.name}`,
@@ -127,7 +170,7 @@ function buildMarkerPositions(
             plot.valToPos(marker.timestamp, "x", false),
           ),
         ),
-        y: markerCenterY,
+        y: valueY,
         lineTop,
         plotTop: bounds.top,
         plotBottom: markerBottom,

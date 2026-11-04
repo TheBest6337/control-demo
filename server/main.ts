@@ -15,6 +15,8 @@ import type { Scenario } from "./plant.ts";
 import { event, MACHINE_NAMESPACE_RE, MutationError } from "./protocol.ts";
 import type { MachineIdentificationUnique, Mutation } from "./protocol.ts";
 import type { MachineSim } from "./sim/machine.ts";
+import { applyTimelineStart, runTimeline } from "./timeline.ts";
+import type { DemoMarker } from "./timeline.ts";
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? "0.0.0.0";
@@ -37,6 +39,67 @@ const STATIC_DIR = path.resolve(
 );
 
 const plant = new Plant(SCENARIO);
+
+// ------------------------------------------------------------------ history
+//
+// The UI only keeps graph data it received while connected. So that every
+// visitor sees a full hour (the UI's long-term retention), the server records
+// LiveValuesEvents itself and replays them to each new connection; at startup
+// and after each reset it fast-forwards the simulation through the past hour.
+
+const HISTORY_S = Number(process.env.DEMO_HISTORY_S ?? 3600);
+const HISTORY_INTERVAL_MS = Number(
+  process.env.DEMO_HISTORY_INTERVAL_MS ?? 2000,
+);
+const history = new Map<
+  string,
+  { ts: number; data: Record<string, unknown> }[]
+>();
+
+function record(ts: number) {
+  for (const sim of plant.active()) {
+    const k = key(sim.uid);
+    if (!history.has(k)) history.set(k, []);
+    const h = history.get(k)!;
+    h.push({ ts, data: sim.live() });
+    const cutoff = ts - HISTORY_S * 1000;
+    while (h.length && h[0].ts < cutoff) h.shift();
+  }
+}
+
+/** Simulate the past HISTORY_S seconds so the line has been running for an hour. */
+/** Graph markers of the pre-filled shift (server/timeline.ts), absolute timestamps. */
+let demoMarkers: DemoMarker[] = [];
+
+function prefillHistory() {
+  history.clear();
+  demoMarkers = [];
+  const now = Date.now();
+  const dt = 0.1;
+  const stepsPerSample = Math.round(HISTORY_INTERVAL_MS / 1000 / dt);
+  const samples = Math.floor((HISTORY_S * 1000) / HISTORY_INTERVAL_MS);
+  const timeline = SCENARIO === "running";
+  if (timeline) applyTimelineStart(plant);
+  for (let i = samples; i > 0; i--) {
+    if (timeline) {
+      const from = (i * HISTORY_INTERVAL_MS) / 1000;
+      const to = ((i - 1) * HISTORY_INTERVAL_MS) / 1000;
+      demoMarkers.push(...runTimeline(plant, from, to, now));
+    }
+    for (let j = 0; j < stepsPerSample; j++) plant.step(dt);
+    record(now - (i - 1) * HISTORY_INTERVAL_MS);
+  }
+  for (const sim of plant.active()) {
+    sim.notices.length = 0;
+    sim.dirty = true;
+  }
+}
+
+const started = performance.now();
+prefillHistory();
+console.log(
+  `prefilled ${HISTORY_S} s of history in ${Math.round(performance.now() - started)} ms`,
+);
 let down = false;
 /** Last operator input: a touch/click/key in any browser or any API write. */
 let lastInput = Date.now();
@@ -53,6 +116,7 @@ function touch() {
 function resetDemo(reason: string) {
   console.log(`resetting demo (${reason})`);
   plant.reset();
+  prefillHistory();
   resetGeneration++;
   touchedSinceReset = false;
   lastInput = Date.now();
@@ -203,6 +267,9 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     });
   }
 
+  if (url.pathname === "/demo/markers" && req.method === "GET") {
+    return sendJson(res, 200, { markers: demoMarkers });
+  }
   if (url.pathname === "/demo/status" && req.method === "GET") {
     return sendJson(res, 200, {
       generation: resetGeneration,
@@ -341,6 +408,9 @@ machineNamespaces.on("connection", (socket) => {
     "event",
     event("StateEvent", { is_default_state: false, ...sim.state() }),
   );
+  for (const h of history.get(k) ?? []) {
+    socket.emit("event", { name: "LiveValuesEvent", data: h.data, ts: h.ts });
+  }
 });
 
 /** Drops every engine.io connection; clients see "transport close" and reconnect. */
@@ -371,6 +441,7 @@ function restartBackend(preop: boolean) {
 
 const lastStateEmit = new Map<string, number>();
 let lastTick = performance.now();
+let lastRecord = Date.now();
 
 setInterval(() => {
   const now = performance.now();
@@ -388,6 +459,10 @@ setInterval(() => {
   }
 
   plant.step(dt);
+  if (Date.now() - lastRecord >= HISTORY_INTERVAL_MS) {
+    lastRecord = Date.now();
+    record(lastRecord);
+  }
 
   for (const sim of plant.active()) {
     const k = key(sim.uid);

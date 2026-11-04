@@ -31,6 +31,8 @@ export class LaserSim extends MachineSim {
   // winder's diameter regulation something to correct
   private process = new Drift(0.012, 25);
   private ovality = new Drift(0.006, 8);
+  /** Relative diameter offset that fades out (e.g. after adding masterbatch). */
+  disturbance = 0;
 
   terminals(): TerminalSpec[] {
     return [];
@@ -53,12 +55,13 @@ export class LaserSim extends MachineSim {
     return (
       NOMINAL_DIAMETER *
       Math.sqrt(output / (pull / NOMINAL_PULL_SPEED)) *
-      (1 + this.process.value)
+      (1 + this.process.value + this.disturbance)
     );
   }
 
   step(dt: number, world: World) {
     this.process.step(dt);
+    this.disturbance *= Math.exp(-dt / 150);
     this.ovality.step(dt);
     const d = this.lineDiameter(world);
     if (d === 0) {

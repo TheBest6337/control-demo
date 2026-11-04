@@ -31,6 +31,14 @@ diameter leave the tolerance band.
 - Modbus shows three serial ports.
 - Troubleshoot → *Restart Backend Process* emulates a restart. *Reboot HMI Panel* resets the whole demo.
 
+**One hour of history.** At startup, and after every reset, the server runs the simulation
+through the past hour. Every graph opens with a full hour of data, and the UI keeps all
+machines subscribed from the start, so no page opens empty. That hour follows a scripted shift
+(`server/timeline.ts`): spool changes, a screw speed step, a nozzle temperature change and
+masterbatch added. Four of these events carry graph markers inside the default 30‑minute
+window: nozzle temperature, masterbatch, new spool and quality check. The demo opens on the
+winder's control page.
+
 **Idle reset.** After 60 s without a touch, click, key press or setting change in any
 connected browser, the demo returns to its initial state. Every browser reloads on the start
 page with presets and local settings cleared, so the next visitor finds the line running as
@@ -58,6 +66,8 @@ Environment variables for the server:
 | `DEMO_SCENARIO` | `running` | `running` or `cold` |
 | `DEMO_IDLE_RESET_S` | `60` | back to the initial state after N s without input (touch, click, key or setting) in any browser; 0 disables |
 | `DEMO_RESTART_DOWNTIME_MS` | `2500` | how long an emulated backend restart takes |
+| `DEMO_HISTORY_S` | `3600` | pre-filled graph history |
+| `DEMO_HISTORY_INTERVAL_MS` | `2000` | history sample spacing |
 | `DEMO_STATIC_DIR` | `ui/dist` | built UI |
 
 Requires Node ≥ 22.6 for `npm run dev`, which runs the server's TypeScript directly. Use Node 24 for everything; the Nix dev shell provides it: `nix develop`.

@@ -8,6 +8,6 @@ declare module "@tanstack/react-router" {
 }
 
 const history = createMemoryHistory({
-  initialEntries: ["/_sidebar/setup/machines"], // control-demo: start on the machine list
+  initialEntries: ["/_sidebar/machines/winder2/1/control"], // control-demo: start on a running machine
 });
 export const router = createRouter({ routeTree: rootTree, history: history });

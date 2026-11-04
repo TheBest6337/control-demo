@@ -268,3 +268,21 @@ describe("behaviour", () => {
     expect(plant.active().map((s) => s.slug)).toEqual(["laser1"]);
   });
 });
+
+describe("timeline", () => {
+  it("a few markers inside the default 30 min graph window, ending in the running state", async () => {
+    const { applyTimelineStart, runTimeline, TIMELINE } =
+      await import("../server/timeline.ts");
+    const plant = new Plant("running");
+    applyTimelineStart(plant);
+    const markers = runTimeline(plant, 3600, 0, 1_000_000_000);
+    expect(markers.length).toBeGreaterThan(0);
+    expect(markers.length).toBeLessThanOrEqual(5);
+    for (const e of TIMELINE) {
+      if (e.markers.length) expect(e.ago).toBeLessThan(30 * 60);
+    }
+    const ex = plant.find<any>("extruder3")!;
+    expect(ex.zones.nozzle.target).toBe(210);
+    expect(ex.targetRpm).toBe(32);
+  });
+});

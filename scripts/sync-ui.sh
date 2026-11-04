@@ -15,10 +15,24 @@ dst="$here/ui"
 
 [ -f "$src/src/App.tsx" ] || { echo "not a control checkout: $control" >&2; exit 1; }
 
+# files the demo replaces outright (see ui-patches.md); warn when upstream
+# changed them since the last sync so the override can be revisited
+overrides=(machines/winder/Spool.tsx components/graph/marker/MarkerOverlay.tsx)
+if [ -f "$dst/UPSTREAM" ]; then
+  for f in "${overrides[@]}"; do
+    if ! git -C "$control" diff --quiet "$(cat "$dst/UPSTREAM")" HEAD -- "electron/src/$f"; then
+      echo "WARNING: upstream changed electron/src/$f, check ui/src/$f" >&2
+    fi
+  done
+fi
+
 rsync -a --delete \
   --exclude 'main.ts' \
   --exclude 'preload.ts' \
   --exclude 'browser-shim.ts' \
+  --exclude 'demo/' \
+  --exclude 'machines/winder/Spool.tsx' \
+  --exclude 'components/graph/marker/MarkerOverlay.tsx' \
   --exclude 'tests/e2e/' \
   "$src/src/" "$dst/src/"
 rsync -a --delete "$src/public/" "$dst/public/"
@@ -48,7 +62,7 @@ export type RepoImportResult = {
 EOF
 
 # 2. browser shim before the app
-printf 'import "./browser-shim";\nimport "@/App";\n' > "$dst/src/renderer.ts"
+printf 'import "./browser-shim";\nimport "@/App";\nimport "./demo/prewarm";\n' > "$dst/src/renderer.ts"
 
 # 3. same-origin backend, start page
 patch_line() { # file, search (fixed string), replacement
@@ -67,7 +81,7 @@ patch_line components/graph/excelExport/excelUtils.ts \
   'private baseUrl: string = window.location.origin, // control-demo'
 patch_line routes/router.tsx \
   'initialEntries: ["/_sidebar/setup/ethercat"],' \
-  'initialEntries: ["/_sidebar/setup/machines"], // control-demo: start on the machine list'
+  'initialEntries: ["/_sidebar/machines/winder2/1/control"], // control-demo: start on a running machine'
 
 # 4. dependencies: start from control's lockfile so every UI package has exactly
 #    the version production ships (newer lucide-react, for example, drops icons
