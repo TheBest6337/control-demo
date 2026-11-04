@@ -8,9 +8,6 @@
   services.qitech-control-demo = {
     enable = true;
     kiosk.enable = true;
-    # reset to the running line after 15 min without input, so every visitor
-    # starts from the same state
-    idleResetMinutes = lib.mkDefault 15;
   };
 
   networking.hostName = lib.mkDefault "qitech-demo";

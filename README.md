@@ -26,10 +26,15 @@ back into tolerance on its own; switch to *Fixed* and change the puller speed to
 diameter leave the tolerance band.
 
 **Setup pages.**
-- EtherCAT lists the 14 Beckhoff terminals of the three EtherCAT machines (EK1100, EL6021, EL2004, EL3021, EL3204, EL2002, EL7041, EL7031, EL2008, EL4002, EL3024) with their EEPROM assignments, plus two unassigned spares.
-- Assigning a spare and restarting the backend (the dialog does this) rebuilds the machine list. An incomplete machine shows up with a "Missing devices" error, as on a real line.
+- EtherCAT lists the 14 Beckhoff terminals of the three EtherCAT machines (EK1100, EL6021, EL2004, EL3021, EL3204, EL2002, EL7041, EL7031, EL2008, EL4002, EL3024), all assigned in their EEPROMs.
+- Reassigning a terminal and restarting the backend (the dialog does this) rebuilds the machine list. An incomplete machine shows up with a "Missing devices" error, as on a real line.
 - Modbus shows three serial ports.
 - Troubleshoot → *Restart Backend Process* emulates a restart. *Reboot HMI Panel* resets the whole demo.
+
+**Idle reset.** After 60 s without a touch, click, key press or setting change in any
+connected browser, the demo returns to its initial state. Every browser reloads on the start
+page with presets and local settings cleared, so the next visitor finds the line running as
+expected. Set the delay with `DEMO_IDLE_RESET_S` (NixOS: `idleResetSeconds`).
 
 **Scenarios.** `DEMO_SCENARIO=running` (default) starts with a warm line producing 1.75 mm
 filament. `cold` starts everything in Standby at ambient temperature, as after power-on.
@@ -51,7 +56,7 @@ Environment variables for the server:
 | `PORT` | `3001` | |
 | `HOST` | `0.0.0.0` | |
 | `DEMO_SCENARIO` | `running` | `running` or `cold` |
-| `DEMO_IDLE_RESET_MIN` | `0` | reset the demo after N minutes without input |
+| `DEMO_IDLE_RESET_S` | `60` | back to the initial state after N s without input (touch, click, key or setting) in any browser; 0 disables |
 | `DEMO_RESTART_DOWNTIME_MS` | `2500` | how long an emulated backend restart takes |
 | `DEMO_STATIC_DIR` | `ui/dist` | built UI |
 
@@ -64,7 +69,7 @@ The flake provides:
 - `packages.<system>.default`: the demo (`bin/qitech-control-demo`).
 - `nixosModules.default`: the `services.qitech-control-demo` options.
 - `nixosConfigurations.kiosk`: a complete demo PC. It autologins on tty1 into
-  [cage](https://github.com/cage-kiosk/cage) running Chromium `--kiosk`, never sleeps, and resets after 15 min without input.
+  [cage](https://github.com/cage-kiosk/cage) running Chromium `--kiosk`, and never sleeps.
 - `nixosConfigurations.kiosk-vm`: the same in QEMU, for trying it out.
 - `packages.x86_64-linux.iso`: a bootable USB image that starts straight into the demo.
 
@@ -85,7 +90,7 @@ The flake provides:
             enable = true;
             kiosk.enable = true;          # full-screen browser on the local display
             scenario = "running";         # or "cold"
-            idleResetMinutes = 15;
+            idleResetSeconds = 60;        # back to the running line when nobody touches it
             openFirewall = false;         # true: other devices can open http://<pc>:3001
           };
         }

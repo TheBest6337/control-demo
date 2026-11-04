@@ -77,7 +77,6 @@
                     isoImage.makeEfiBootable = true;
                     isoImage.makeUsbBootable = true;
                     image.baseName = lib.mkForce "qitech-control-demo";
-                    services.qitech-control-demo.idleResetMinutes = 15;
                   }
                 )
               ];

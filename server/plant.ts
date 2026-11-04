@@ -103,15 +103,6 @@ export class Plant implements World {
           role: t.role,
         });
     }
-    // spare, unidentified terminals so the EEPROM assignment dialog can be tried
-    this.addDevice(
-      { role: -1, name: "EL7031", product_id: 0x1b773052, revision: 0x1a0000 },
-      null,
-    );
-    this.addDevice(
-      { role: -1, name: "EL2002", product_id: 0x07d23052, revision: 0x120000 },
-      null,
-    );
 
     this.modbus = [
       {

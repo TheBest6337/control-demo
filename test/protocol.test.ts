@@ -231,10 +231,20 @@ describe("behaviour", () => {
 
   it("restart builds machines from EEPROM assignments", () => {
     const plant = new Plant("running");
-    const spare = plant.devices.findIndex(
-      (d) => d.device_identification.device_machine_identification === null,
-    );
-    plant.writeDeviceIdentification(spare, {
+    expect(
+      plant.devices.every(
+        (d) => d.device_identification.device_machine_identification !== null,
+      ),
+    ).toBe(true);
+    // move the winder's traverse stepper (role 3) to a new winder, serial 7
+    const traverse = plant.devices.findIndex((d) => {
+      const id = d.device_identification.device_machine_identification;
+      return (
+        id?.machine_identification_unique.machine_identification.machine ===
+          2 && id.role === 3
+      );
+    });
+    plant.writeDeviceIdentification(traverse, {
       machine_identification_unique: {
         machine_identification: { vendor: 1, machine: 2 },
         serial: 7,
@@ -242,10 +252,17 @@ describe("behaviour", () => {
       role: 3,
     });
     plant.restart(false);
-    const entry = plant.machines.find(
-      (m) => m.machine_identification_unique.serial === 7,
-    )!;
-    expect(entry.error).toMatch(/Missing devices/);
+    const errorOf = (serial: number) =>
+      plant.machines.find(
+        (m) =>
+          m.machine_identification_unique.machine_identification.machine ===
+            2 && m.machine_identification_unique.serial === serial,
+      )!.error;
+    expect(errorOf(7)).toMatch(/Missing devices/);
+    expect(errorOf(1)).toMatch(/role 3/);
+    expect(plant.active().map((s) => s.slug)).not.toContain("winder2");
+    plant.reset();
+    expect(plant.active()).toHaveLength(4);
     plant.restart(true);
     expect(plant.ethercatState).toBe("preop");
     expect(plant.active().map((s) => s.slug)).toEqual(["laser1"]);

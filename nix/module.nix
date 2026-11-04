@@ -72,11 +72,14 @@ in
       '';
     };
 
-    idleResetMinutes = lib.mkOption {
+    idleResetSeconds = lib.mkOption {
       type = lib.types.ints.unsigned;
-      default = 0;
-      example = 10;
-      description = "Reset the demo to its initial state after this many minutes without operator input (0 disables).";
+      default = 60;
+      description = ''
+        Return to the initial demo state after this many seconds without anyone
+        touching the UI (any browser) or changing a setting, so the next visitor
+        finds the line as expected. 0 disables it.
+      '';
     };
 
     kiosk = {
@@ -115,7 +118,7 @@ in
             PORT = toString cfg.port;
             HOST = if cfg.openFirewall then "0.0.0.0" else "127.0.0.1";
             DEMO_SCENARIO = cfg.scenario;
-            DEMO_IDLE_RESET_MIN = toString cfg.idleResetMinutes;
+            DEMO_IDLE_RESET_S = toString cfg.idleResetSeconds;
             NODE_ENV = "production";
           };
           serviceConfig = {

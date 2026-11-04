@@ -69,6 +69,12 @@ patch_line routes/router.tsx \
   'initialEntries: ["/_sidebar/setup/ethercat"],' \
   'initialEntries: ["/_sidebar/setup/machines"], // control-demo: start on the machine list'
 
+# 4. dependencies: start from control's lockfile so every UI package has exactly
+#    the version production ships (newer lucide-react, for example, drops icons
+#    the UI uses); npm adds only the mock server's own packages on top
+cp "$src/package-lock.json" "$here/package-lock.json"
+(cd "$here" && npm install --no-audit --no-fund)
+
 rev="$(git -C "$control" rev-parse HEAD)"
 echo "synced from $control @ $rev"
 echo "$rev" > "$dst/UPSTREAM"

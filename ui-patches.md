@@ -23,6 +23,9 @@ every change listed here.
 - **EtherCAT ON/OFF toggle**: `POST /demo/ethercat`. Takes effect on the next restart.
 - **Export logs / graph export**: browser download.
 - **Update**: tabs stay visible; fetching versions reports that updates are unavailable in the demo.
+- **Idle reset**: reports touches, clicks and key presses to `POST /demo/activity` (at most
+  every 3 s) and polls `GET /demo/status`. When the server has reset the demo, it clears
+  `localStorage`/`sessionStorage` and reloads.
 - Theme is always light and fullscreen uses the Fullscreen API.
 - On first load it turns on the winder's "Adaptive puller speed" option (Winder → Config,
   stored in `localStorage`), because the demo line starts in diameter regulation.

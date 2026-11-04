@@ -25,8 +25,11 @@ const STATE_MIN_INTERVAL_MS = 100;
 const RESTART_DOWNTIME_MS = Number(
   process.env.DEMO_RESTART_DOWNTIME_MS ?? 2500,
 );
-/** Reset the demo after this many minutes without any operator input (0 = never). */
-const IDLE_RESET_MIN = Number(process.env.DEMO_IDLE_RESET_MIN ?? 0);
+/**
+ * Back to the initial demo state after this many seconds without anyone
+ * touching the UI (0 = never), so the next visitor finds the line running.
+ */
+const IDLE_RESET_S = Number(process.env.DEMO_IDLE_RESET_S ?? 60);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const STATIC_DIR = path.resolve(
@@ -35,7 +38,26 @@ const STATIC_DIR = path.resolve(
 
 const plant = new Plant(SCENARIO);
 let down = false;
+/** Last operator input: a touch/click/key in any browser or any API write. */
 let lastInput = Date.now();
+/** Whether anything happened since the last reset (no reset loop while idle). */
+let touchedSinceReset = false;
+/** Increments on every demo reset; browsers reload when it changes. */
+let resetGeneration = 0;
+
+function touch() {
+  lastInput = Date.now();
+  touchedSinceReset = true;
+}
+
+function resetDemo(reason: string) {
+  console.log(`resetting demo (${reason})`);
+  plant.reset();
+  resetGeneration++;
+  touchedSinceReset = false;
+  lastInput = Date.now();
+  restartBackend(false);
+}
 
 // ---------------------------------------------------------------- HTTP / REST
 
@@ -110,14 +132,14 @@ const routes: Record<string, Handler> = {
     const sim = uid && plant.byUid(uid);
     if (!sim) throw new MutationError("no such machine");
     sim.mutate(body.data as Mutation, plant);
-    lastInput = Date.now();
+    touch();
   },
   "/api/v1/write_machine_device_identification": (body) => {
     plant.writeDeviceIdentification(
       body.hardware_identification_ethercat.subdevice_index,
       body.device_machine_identification,
     );
-    lastInput = Date.now();
+    touch();
     broadcastMain(["EthercatDevicesEvent"]);
   },
   "/api/v1/write_modbus_device_assignment": (body) => {
@@ -125,7 +147,7 @@ const routes: Record<string, Handler> = {
       body.port,
       body.device_machine_identification ?? null,
     );
-    lastInput = Date.now();
+    touch();
     broadcastMain(["ModbusDevicesEvent"]);
   },
   "/api/v1/modbus/scan": () => {
@@ -137,8 +159,11 @@ const routes: Record<string, Handler> = {
   },
   // troubleshoot.rebootHmi: back to the factory demo state
   "/demo/reset": () => {
-    plant.reset();
-    restartBackend(false);
+    resetDemo("Reboot HMI Panel");
+  },
+  // ui/src/browser-shim.ts reports touches, clicks and key presses
+  "/demo/activity": () => {
+    touch();
   },
   "/demo/ethercat": (body) => {
     plant.ethercatEnabled = !!body?.enabled;
@@ -178,6 +203,13 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     });
   }
 
+  if (url.pathname === "/demo/status" && req.method === "GET") {
+    return sendJson(res, 200, {
+      generation: resetGeneration,
+      idle_reset_s: IDLE_RESET_S,
+    });
+  }
+
   const route = routes[url.pathname];
   if (route && req.method === "POST") {
     if (down) return sendJson(res, 503, { error: "backend is restarting" });
@@ -211,6 +243,24 @@ const io = new Server(http, {
   cors: { origin: "*" },
   // refuse new connections while "restarting", like a backend that is down
   allowRequest: (_req, cb) => cb(null, !down),
+});
+
+// The UI sometimes opens the same machine namespace twice on one connection
+// (two socket objects for one path). socket.io treats the second CONNECT as a
+// protocol error and closes the whole connection, /main included; the real
+// backend (socketioxide) accepts it. Replace the old socket instead.
+io.of("/main").once("connection", (socket) => {
+  const proto = Object.getPrototypeOf(socket.client);
+  if (proto.__demoReconnectPatch) return;
+  const ondecoded = proto.ondecoded;
+  proto.ondecoded = function (packet: { type: number; nsp: string }) {
+    if (packet.type === 0 /* CONNECT */) {
+      const existing = this.nsps.get(this._parseNamespace(packet).namespace);
+      if (existing) existing._onclose("client namespace disconnect");
+    }
+    return ondecoded.call(this, packet);
+  };
+  proto.__demoReconnectPatch = true;
 });
 
 const mainSockets = new Set<Socket>();
@@ -256,30 +306,41 @@ function defaultState(sim: MachineSim) {
   return event("StateEvent", { is_default_state: true, ...fresh.state() });
 }
 
-io.of(MACHINE_NAMESPACE_RE).on("connection", (socket) => {
-  const name = socket.nsp.name;
-  const [, vendor, machine, serial] = MACHINE_NAMESPACE_RE.exec(name)!;
-  const uid = {
-    machine_identification: {
-      vendor: Number(vendor),
-      machine: Number(machine),
-    },
-    serial: Number(serial),
+function namespaceUid(name: string): MachineIdentificationUnique | null {
+  const m = MACHINE_NAMESPACE_RE.exec(name);
+  if (!m) return null;
+  return {
+    machine_identification: { vendor: Number(m[1]), machine: Number(m[2]) },
+    serial: Number(m[3]),
   };
-  const sim = plant.byUid(uid);
-  if (!sim) {
-    socket.disconnect(true);
+}
+
+const machineNamespaces = io.of(MACHINE_NAMESPACE_RE);
+
+// The UI matches machine sockets to the machine list by serial only, so with
+// several serial-1 machines it also opens namespaces for machines that are not
+// running (e.g. after a restart into preop). Rejecting them, or calling
+// socket.disconnect(true), disturbs the engine.io connection all namespaces
+// share and takes /main down with it. Such sockets are accepted and kept quiet
+// instead; every restart closes all connections, so they re-subscribe once the
+// machine is back.
+machineNamespaces.on("connection", (socket) => {
+  const uid = namespaceUid(socket.nsp.name);
+  if (!uid) {
+    socket.disconnect();
     return;
   }
   const k = key(uid);
   if (!machineSockets.has(k)) machineSockets.set(k, new Set());
   machineSockets.get(k)!.add(socket);
+  socket.on("disconnect", () => machineSockets.get(k)?.delete(socket));
+  const sim = plant.byUid(uid);
+  if (!sim) return;
   socket.emit("event", defaultState(sim));
   socket.emit(
     "event",
     event("StateEvent", { is_default_state: false, ...sim.state() }),
   );
-  socket.on("disconnect", () => machineSockets.get(k)?.delete(socket));
 });
 
 /** Drops every engine.io connection; clients see "transport close" and reconnect. */
@@ -317,11 +378,12 @@ setInterval(() => {
   lastTick = now;
   if (down) return;
 
-  if (IDLE_RESET_MIN > 0 && Date.now() - lastInput > IDLE_RESET_MIN * 60_000) {
-    console.log(`no input for ${IDLE_RESET_MIN} min, resetting demo`);
-    lastInput = Date.now();
-    plant.reset();
-    restartBackend(false);
+  if (
+    IDLE_RESET_S > 0 &&
+    touchedSinceReset &&
+    Date.now() - lastInput > IDLE_RESET_S * 1000
+  ) {
+    resetDemo(`no input for ${IDLE_RESET_S} s`);
     return;
   }
 

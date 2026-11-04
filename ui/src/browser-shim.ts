@@ -63,6 +63,50 @@ if (!("themeMode" in window)) {
     // storage unavailable: keep the UI default
   }
 
+  // Idle reset: the server returns the line to its initial state after a
+  // minute without input (DEMO_IDLE_RESET_S). Report input here, and start
+  // over from the start page, with presets and settings cleared, whenever the
+  // demo was reset.
+  let lastReport = 0;
+  const reportActivity = () => {
+    const now = Date.now();
+    if (now - lastReport < 3000) return;
+    lastReport = now;
+    fetch(`${window.location.origin}/demo/activity`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    }).catch(() => {});
+  };
+  for (const type of ["pointerdown", "keydown", "wheel", "touchstart"]) {
+    window.addEventListener(type, reportActivity, {
+      capture: true,
+      passive: true,
+    });
+  }
+
+  let generation: number | undefined;
+  setInterval(async () => {
+    try {
+      const res = await fetch(`${window.location.origin}/demo/status`);
+      if (!res.ok) return;
+      const status: { generation: number } = await res.json();
+      if (generation === undefined) {
+        generation = status.generation;
+      } else if (status.generation !== generation) {
+        try {
+          localStorage.clear();
+          sessionStorage.clear();
+        } catch {
+          // ignore
+        }
+        window.location.reload();
+      }
+    } catch {
+      // backend restarting
+    }
+  }, 2000);
+
   Object.assign(window, {
     themeMode: {
       toggle: async () => false,
