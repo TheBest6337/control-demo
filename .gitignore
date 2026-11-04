@@ -1,0 +1,7 @@
+node_modules/
+ui/dist/
+dist-server/
+result
+result-*
+*.qcow2
+.DS_Store
