@@ -282,7 +282,7 @@ describe("timeline", () => {
       if (e.markers.length) expect(e.ago).toBeLessThan(30 * 60);
     }
     const ex = plant.find<any>("extruder3")!;
-    expect(ex.zones.nozzle.target).toBe(210);
+    expect(ex.zones.nozzle.target).toBe(180);
     expect(ex.targetRpm).toBe(32);
   });
 });

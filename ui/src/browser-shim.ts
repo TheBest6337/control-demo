@@ -8,6 +8,7 @@
 // its own static files.
 
 import { getBackend, resetDemo } from "@backend/browser.ts";
+import { seedDemoPresets } from "./demo/presets";
 
 const ok = async () => ({ success: true });
 const noop = async () => {};
@@ -51,6 +52,20 @@ if (!("themeMode" in window)) {
   } catch {
     // storage unavailable: keep the UI default
   }
+
+  // example presets per material on the extruder, winder and laser
+  seedDemoPresets();
+
+  // Like an HMI panel: taps and drags never select text. Inputs stay editable
+  // and selectable.
+  const noSelect = document.createElement("style");
+  noSelect.textContent = `
+    html, body, body * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    input, textarea, [contenteditable]:not([contenteditable="false"]), [contenteditable] * {
+      -webkit-user-select: text; user-select: text;
+    }
+  `;
+  document.head.appendChild(noSelect);
 
   // Idle reset (kiosk, `?idleReset=<s>`): the backend starts over from the
   // start page, with presets and settings cleared, after that long without

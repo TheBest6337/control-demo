@@ -416,7 +416,7 @@ let instance: Backend | undefined;
 
 /**
  * Settings come from the page URL, so one static build serves both the
- * website and the kiosk: `?scenario=cold`, `?idleReset=60`.
+ * website and the kiosk: `?scenario=cold`, `?idleReset=150`.
  */
 export function configFromUrl(search: string): BackendConfig {
   const q = new URLSearchParams(search);

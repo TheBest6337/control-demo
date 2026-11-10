@@ -76,7 +76,7 @@ in
 
     idleResetSeconds = lib.mkOption {
       type = lib.types.ints.unsigned;
-      default = 60;
+      default = 150; # 2.5 min
       description = ''
         Return to the initial demo state after this many seconds without anyone
         touching the kiosk UI or changing a setting, so the next visitor finds

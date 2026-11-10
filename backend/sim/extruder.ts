@@ -74,7 +74,7 @@ export class ExtruderSim extends MachineSim {
   pressureLimit = 100;
   pressureLimitEnabled = true;
   nozzleTargetEnabled = true;
-  minExtrusionTemperature = 150;
+  minExtrusionTemperature = 120; // real default 150; the demo runs PLA with the back zone at 130 °C
   algorithm: Algorithm = "ObserverPi";
   pressureGains: Gains = { ...PRESSURE_GAINS };
   zones: Record<Zone, HeatingZone>;
@@ -111,10 +111,10 @@ export class ExtruderSim extends MachineSim {
   /** A warm machine extruding PLA, as a customer would find it in production. */
   preset() {
     const targets: Record<Zone, number> = {
-      nozzle: 210,
-      front: 205,
-      middle: 200,
-      back: 190,
+      nozzle: 180,
+      front: 180,
+      middle: 150,
+      back: 130,
     };
     for (const z of ZONES) {
       this.zones[z].target = targets[z];
@@ -171,7 +171,7 @@ export class ExtruderSim extends MachineSim {
     const viscosity =
       1.45 *
       this.viscosityFactor *
-      Math.exp(-(this.meltTemperature() - 200) / 45);
+      Math.exp(-(this.meltTemperature() - 155) / 45);
     return Math.max(0, rpm * viscosity);
   }
 

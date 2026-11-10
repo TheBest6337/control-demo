@@ -83,6 +83,11 @@ export class AquapathSim extends MachineSim {
   left = new Reservoir("Left", 22.4);
   right = new Reservoir("Right", 22.1);
 
+  constructor(serial: number) {
+    super(serial);
+    this.right.target = 60; // demo default setpoint, also in the cold scenario
+  }
+
   terminals(): TerminalSpec[] {
     return [
       { role: 0, name: "EK1100", product_id: 0x044c2c52, revision: 0x120000 },
@@ -96,7 +101,7 @@ export class AquapathSim extends MachineSim {
   preset() {
     this.mode = "Auto";
     this.left.target = 30;
-    this.right.target = 24;
+    this.right.target = 60;
     for (const r of [this.left, this.right]) {
       r.shouldFlow = true;
       r.flow = NOMINAL_FLOW;

@@ -17,7 +17,7 @@ the EtherCAT subdevices and the Modbus port.
 
 | UI | Machine | What happens |
 |---|---|---|
-| Extruder | ExtruderV3 (`extruder3`, id 22, serial 1) | 4 heating zones with a thermal model, screw ramp, pressure from rpm and melt viscosity, RPM or pressure regulation, cold-extrusion lock, pressure limit, inverter status, pressure PID auto-tune, ObserverPI/PID algorithm switch |
+| Extruder | ExtruderV3 (`extruder3`, id 22, serial 1) | 4 heating zones with a thermal model, screw ramp, pressure from rpm and melt viscosity, RPM or pressure regulation, cold-extrusion lock (all zones ≥ 120 °C; the real default is 150 °C), pressure limit, inverter status, pressure PID auto-tune, ObserverPI/PID algorithm switch |
 | Winder | WinderV1 (`winder2`, id 2, serial 1) | traverse homing, jogging and traversing between limits with dwell, tension arm zeroing, puller with gear ratio, spool rpm from a growing spool radius, MinMax/Adaptive spool control, meter counter with automatic Pull/Hold action, **diameter regulation from the laser** |
 | Laser | LaserV1 (`laser1`, id 6, Modbus on `/dev/ttyUSB0`) | diameter from extruder output ÷ puller speed with process drift, x/y diameter, roundness, tolerance check, out-of-tolerance warning |
 | Aquapath | AquapathV1 (`aquapath1`, id 9, serial 1) | two reservoirs: pump with cooldown, heater, fan cooling ramp Low/Ramp/Max (same bands as the real controller), heat input from the extruded strand, "Thermal Control Reset" notices |
@@ -41,10 +41,15 @@ masterbatch added. Four of these events carry graph markers inside the default 3
 window: nozzle temperature, masterbatch, new spool and quality check. The demo opens on the
 winder's control page.
 
-**Idle reset** (kiosk). With `?idleReset=60` in the URL, the demo returns to its initial state
-after 60 s without a touch, click, key press or setting change: the page reloads on the start
+**Idle reset** (kiosk). With `?idleReset=150` in the URL, the demo returns to its initial state
+after 150 s (2.5 min) without a touch, click, key press or setting change: the page reloads on the start
 page with presets and local settings cleared, so the next visitor finds the line running as
 expected. Off by default, so website visitors are never reset (NixOS: `idleResetSeconds`).
+
+**Example presets.** Extruder, winder and laser each come with *PLA 1.75 mm*, *PETG 1.75 mm*
+and *ABS 2.85 mm* presets (`ui/src/demo/presets.ts`). Applying the same material on all three
+switches the line to it: the winder's diameter regulation brings the laser back into tolerance
+at the new diameter. They come back after an idle reset.
 
 **Scenarios.** The default starts with a warm line producing 1.75 mm filament. `?scenario=cold`
 starts everything in Standby at ambient temperature, as after power-on.
@@ -106,7 +111,7 @@ The flake provides:
             enable = true;
             kiosk.enable = true;          # full-screen browser on the local display
             scenario = "running";         # or "cold"
-            idleResetSeconds = 60;        # back to the running line when nobody touches it
+            idleResetSeconds = 150;       # back to the running line when nobody touches it
             openFirewall = false;         # true: other devices can open http://<pc>:3001 (each runs its own line)
           };
         }

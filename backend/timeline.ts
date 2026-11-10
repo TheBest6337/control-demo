@@ -55,7 +55,7 @@ function line(plant: Plant): Line {
 export function applyTimelineStart(plant: Plant) {
   const { extruder, winder } = line(plant);
   if (extruder) {
-    extruder.zones.nozzle.target = 205;
+    extruder.zones.nozzle.target = 175;
     extruder.targetRpm = 30;
     extruder.rpm = 30;
   }
@@ -78,12 +78,12 @@ export const TIMELINE: TimelineEvent[] = [
     markers: [
       {
         graph: "extruder-graphs",
-        name: "Nozzle 205 → 210 °C",
+        name: "Nozzle 175 → 180 °C",
         color: COLORS.temperature,
       },
     ],
     apply: ({ extruder, plant }) =>
-      extruder?.mutate({ SetNozzleHeatingTemperature: 210 }, plant),
+      extruder?.mutate({ SetNozzleHeatingTemperature: 180 }, plant),
   },
   {
     ago: 18 * 60,
