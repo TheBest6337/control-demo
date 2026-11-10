@@ -2,28 +2,16 @@
 // (src/preload.ts → helpers/ipc/*-context.ts in control/electron) normally
 // exposes. The machine pages never use them; they only back the
 // theme/fullscreen/update/troubleshoot/export helpers.
+//
+// It also starts the simulated backend, which runs in this page
+// (backend/browser.ts): the demo makes no network requests besides loading
+// its own static files.
+
+import { getBackend, resetDemo } from "@backend/browser.ts";
 
 const ok = async () => ({ success: true });
 const noop = async () => {};
 const UNAVAILABLE = "Software updates are not available in the demo.";
-
-async function demo(
-  path: string,
-  body?: unknown,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const res = await fetch(`${window.location.origin}${path}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body ?? {}),
-    });
-    return res.ok
-      ? { success: true }
-      : { success: false, error: res.statusText };
-  } catch (e) {
-    return { success: false, error: String(e) };
-  }
-}
 
 function download(params: {
   suggestedName: string;
@@ -51,6 +39,7 @@ function download(params: {
 }
 
 if (!("themeMode" in window)) {
+  const backend = getBackend();
   let ethercatEnabled = true;
 
   // The demo line starts with the winder regulating on the laser diameter;
@@ -63,21 +52,10 @@ if (!("themeMode" in window)) {
     // storage unavailable: keep the UI default
   }
 
-  // Idle reset: the server returns the line to its initial state after a
-  // minute without input (DEMO_IDLE_RESET_S). Report input here, and start
-  // over from the start page, with presets and settings cleared, whenever the
-  // demo was reset.
-  let lastReport = 0;
-  const reportActivity = () => {
-    const now = Date.now();
-    if (now - lastReport < 3000) return;
-    lastReport = now;
-    fetch(`${window.location.origin}/demo/activity`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}",
-    }).catch(() => {});
-  };
+  // Idle reset (kiosk, `?idleReset=<s>`): the backend starts over from the
+  // start page, with presets and settings cleared, after that long without
+  // input. Touches, clicks and key presses count as input.
+  const reportActivity = () => backend.touch();
   for (const type of ["pointerdown", "keydown", "wheel", "touchstart"]) {
     window.addEventListener(type, reportActivity, {
       capture: true,
@@ -85,27 +63,12 @@ if (!("themeMode" in window)) {
     });
   }
 
-  let generation: number | undefined;
-  setInterval(async () => {
-    try {
-      const res = await fetch(`${window.location.origin}/demo/status`);
-      if (!res.ok) return;
-      const status: { generation: number } = await res.json();
-      if (generation === undefined) {
-        generation = status.generation;
-      } else if (status.generation !== generation) {
-        try {
-          localStorage.clear();
-          sessionStorage.clear();
-        } catch {
-          // ignore
-        }
-        window.location.reload();
-      }
-    } catch {
-      // backend restarting
-    }
-  }, 2000);
+  const restart = async (preop: boolean) => {
+    if (backend.down)
+      return { success: false, error: "backend is restarting" };
+    backend.restart(preop);
+    return { success: true };
+  };
 
   Object.assign(window, {
     themeMode: {
@@ -173,12 +136,11 @@ if (!("themeMode" in window)) {
     troubleshoot: {
       // "Reboot HMI" brings the whole demo back to its initial state
       rebootHmi: async () => {
-        const r = await demo("/demo/reset");
-        setTimeout(() => window.location.reload(), 500);
-        return r;
+        setTimeout(resetDemo, 500);
+        return { success: true };
       },
-      restartBackend: () => demo("/demo/restart"),
-      restartBackendIntoPreop: () => demo("/demo/restart?preop=1"),
+      restartBackend: () => restart(false),
+      restartBackendIntoPreop: () => restart(true),
       exportLogs: async () =>
         download({
           suggestedName: "qitech-control-demo-logs.txt",
@@ -191,7 +153,8 @@ if (!("themeMode" in window)) {
       }),
       setEthercatEnabled: async (enabled: boolean) => {
         ethercatEnabled = enabled;
-        return demo("/demo/ethercat", { enabled });
+        backend.setEthercatEnabled(enabled);
+        return { success: true };
       },
     },
     fileExport: {

@@ -18,9 +18,9 @@ import * as aquapath1 from "@/machines/aquapath/aquapath1/aquapath1Namespace";
 import * as extruder3 from "@/machines/extruder/extruder3/extruder3Namespace";
 import * as laser1 from "@/machines/laser/laser1/laser1Namespace";
 import * as winder2 from "@/machines/winder/winder2/winder2Namespace";
-import { Plant } from "../server/plant.ts";
-import { event, MutationError } from "../server/protocol.ts";
-import type { MachineSim } from "../server/sim/machine.ts";
+import { Plant } from "../backend/plant.ts";
+import { event, MutationError } from "../backend/protocol.ts";
+import type { MachineSim } from "../backend/sim/machine.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ui = (p: string) => path.join(here, "..", "ui", "src", p);
@@ -272,7 +272,7 @@ describe("behaviour", () => {
 describe("timeline", () => {
   it("a few markers inside the default 30 min graph window, ending in the running state", async () => {
     const { applyTimelineStart, runTimeline, TIMELINE } =
-      await import("../server/timeline.ts");
+      await import("../backend/timeline.ts");
     const plant = new Plant("running");
     applyTimelineStart(plant);
     const markers = runTimeline(plant, 3600, 0, 1_000_000_000);

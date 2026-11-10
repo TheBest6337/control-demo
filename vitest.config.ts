@@ -6,7 +6,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   resolve: {
-    alias: { "@": path.resolve(here, "ui/src") },
+    alias: {
+      "@backend": path.resolve(here, "backend"),
+      "@": path.resolve(here, "ui/src"),
+      "socket.io-client": path.resolve(here, "backend/socketio-client.ts"),
+      "socket.io-msgpack-parser": path.resolve(here, "backend/msgpack-parser.ts"),
+    },
   },
   test: {
     dir: "./test",

@@ -17,7 +17,7 @@ dst="$here/ui"
 
 # files the demo replaces outright (see ui-patches.md); warn when upstream
 # changed them since the last sync so the override can be revisited
-overrides=(machines/winder/Spool.tsx components/graph/marker/MarkerOverlay.tsx)
+overrides=(machines/winder/Spool.tsx components/graph/marker/MarkerOverlay.tsx lib/timeseries.ts)
 if [ -f "$dst/UPSTREAM" ]; then
   for f in "${overrides[@]}"; do
     if ! git -C "$control" diff --quiet "$(cat "$dst/UPSTREAM")" HEAD -- "electron/src/$f"; then
@@ -33,6 +33,7 @@ rsync -a --delete \
   --exclude 'demo/' \
   --exclude 'machines/winder/Spool.tsx' \
   --exclude 'components/graph/marker/MarkerOverlay.tsx' \
+  --exclude 'lib/timeseries.ts' \
   --exclude 'tests/e2e/' \
   "$src/src/" "$dst/src/"
 rsync -a --delete "$src/public/" "$dst/public/"
@@ -64,7 +65,8 @@ EOF
 # 2. browser shim before the app
 printf 'import "./browser-shim";\nimport "@/App";\nimport "./demo/prewarm";\n' > "$dst/src/renderer.ts"
 
-# 3. same-origin backend, start page
+# 3. start page (the backend URLs are ignored: the in-browser backend answers
+#    them, see backend/browser.ts)
 patch_line() { # file, search (fixed string), replacement
   local file="$dst/src/$1"
   grep -qF -- "$2" "$file" || { echo "patch anchor not found in $1: $2" >&2; exit 1; }

@@ -10,15 +10,17 @@
 let
   cfg = config.services.qitech-control-demo;
   url = "http://127.0.0.1:${toString cfg.port}/";
+  # the simulation runs in the browser; its settings travel in the page URL
+  kioskUrl = "${url}?scenario=${cfg.scenario}&idleReset=${toString cfg.idleResetSeconds}";
 
   kioskSession = pkgs.writeShellScript "qitech-control-demo-kiosk" ''
-    # wait for the demo server so the browser never shows an error page
+    # wait for the web server so the browser never shows an error page
     for _ in $(seq 1 120); do
       ${pkgs.curl}/bin/curl -fsS -o /dev/null ${url} && break
       sleep 0.5
     done
     exec ${lib.getExe cfg.kiosk.browser} \
-      --kiosk ${url} \
+      --kiosk "${kioskUrl}" \
       --ozone-platform=wayland \
       --incognito \
       --no-first-run \
@@ -56,7 +58,7 @@ in
     openFirewall = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Serve the demo on all interfaces and open the port, so other devices (tablets, laptops) can join.";
+      description = "Serve the demo on all interfaces and open the port, so other devices (tablets, laptops) can open it too. Every browser runs its own simulated line.";
     };
 
     scenario = lib.mkOption {
@@ -66,7 +68,7 @@ in
       ];
       default = "running";
       description = ''
-        Initial state of the simulated line. `running`: warm extruder,
+        Initial state of the simulated line in the kiosk browser. `running`: warm extruder,
         winder winding, laser in tolerance, aquapath in Auto. `cold`: everything
         in Standby at ambient temperature, as after power-on.
       '';
@@ -77,8 +79,8 @@ in
       default = 60;
       description = ''
         Return to the initial demo state after this many seconds without anyone
-        touching the UI (any browser) or changing a setting, so the next visitor
-        finds the line as expected. 0 disables it.
+        touching the kiosk UI or changing a setting, so the next visitor finds
+        the line as expected. 0 disables it.
       '';
     };
 
@@ -111,14 +113,12 @@ in
     lib.mkMerge [
       {
         systemd.services.qitech-control-demo = {
-          description = "QiTech Control demo server";
+          description = "QiTech Control demo web server";
           wantedBy = [ "multi-user.target" ];
           after = [ "network.target" ];
           environment = {
             PORT = toString cfg.port;
             HOST = if cfg.openFirewall then "0.0.0.0" else "127.0.0.1";
-            DEMO_SCENARIO = cfg.scenario;
-            DEMO_IDLE_RESET_S = toString cfg.idleResetSeconds;
             NODE_ENV = "production";
           };
           serviceConfig = {

@@ -11,32 +11,46 @@ script warns when upstream changed them since the last sync.
 | `helpers/ipc/update/git-fetch-utils.ts` | reduced to its types | imported by `ChooseVersionPage` for `GitRefInfo` only |
 | `src/browser-shim.ts` | **added** | stands in for the 7 preload globals (`themeMode`, `electronWindow`, `environment`, `update`, `troubleshoot`, `nixos`, `fileExport`) |
 | `src/renderer.ts` | imports the shim first and `demo/prewarm` after the app | |
-| `src/demo/prewarm.ts` | **added** | subscribes to every running machine at startup (pages open with data) and seeds the shift's graph markers from `GET /demo/markers` |
+| `src/demo/prewarm.ts` | **added** | subscribes to every running machine at startup (pages open with data) and seeds the shift's graph markers from the in-browser backend |
 | `machines/winder/Spool.tsx` | **replaced** | spool turns on every animation frame from the latest rpm instead of jumping on each update |
 | `components/graph/marker/MarkerOverlay.tsx` | marker dot on the graph value at its timestamp | upstream always draws it at mid-height |
-| `client/useClient.tsx`, `client/socketioStore.ts`, `components/graph/excelExport/excelUtils.ts` | backend URL → `window.location.origin` | UI and mock are served from one origin |
+| `lib/timeseries.ts` | **replaced** `insert`: O(1) ring-buffer write instead of immer `produce` | upstream copies and freezes the whole 3600-entry buffer on every sample, so replaying the hour of history blocked the page for ~20 s at startup |
+| `client/useClient.tsx`, `client/socketioStore.ts`, `components/graph/excelExport/excelUtils.ts` | backend URL → `window.location.origin` | the in-browser backend answers same-origin `/api/…` calls |
 | `routes/router.tsx` | start page `/machines/winder2/1/control` instead of `/setup/ethercat` | demo opens on a running machine |
-| `vite.config.ts` | replaced | browser-only build, dev proxy to the mock |
+| `vite.config.ts` | replaced | browser-only static build (`base: "./"`); aliases `socket.io-client` and `socket.io-msgpack-parser` to the in-browser backend |
+
+## The backend runs in the page
+
+There is no server: `backend/` (the simulated `qitech_control`) is bundled into the UI.
+
+- **Socket.IO**: Vite aliases `socket.io-client` to `backend/socketio-client.ts`, an in-memory
+  client with the same behaviour towards `socketioStore.ts` (async delivery, `connect` before the
+  first event, reconnect after a dropped connection, explicit `disconnect()` stays down).
+- **REST**: `backend/browser.ts` wraps `window.fetch` and answers same-origin `/api/…` requests;
+  everything else goes to the real `fetch`.
+- **Settings** come from the page URL: `?scenario=cold`, `?idleReset=60`.
 
 ## What the shim does
 
-- **Troubleshoot → Restart Backend Process / Into Preop**: `POST /demo/restart[?preop=1]`. The
-  mock drops every Socket.IO transport, is "down" for 2.5 s and rebuilds its machine list from
-  the EtherCAT/Modbus assignments, like the real backend after an EEPROM write.
-- **Troubleshoot → Reboot HMI Panel**: `POST /demo/reset` (back to the initial demo state) and reload.
-- **EtherCAT ON/OFF toggle**: `POST /demo/ethercat`. Takes effect on the next restart.
+- Starts the in-browser backend before the app loads.
+- **Troubleshoot → Restart Backend Process / Into Preop**: the backend drops every connection,
+  is "down" for 2.5 s and rebuilds its machine list from the EtherCAT/Modbus assignments, like
+  the real backend after an EEPROM write.
+- **Troubleshoot → Reboot HMI Panel**: clears `localStorage`/`sessionStorage` and reloads, which
+  starts a fresh simulation.
+- **EtherCAT ON/OFF toggle**: takes effect on the next restart.
 - **Export logs / graph export**: browser download.
 - **Update**: tabs stay visible; fetching versions reports that updates are unavailable in the demo.
-- **Idle reset**: reports touches, clicks and key presses to `POST /demo/activity` (at most
-  every 3 s) and polls `GET /demo/status`. When the server has reset the demo, it clears
-  `localStorage`/`sessionStorage` and reloads.
+- **Idle reset** (only with `?idleReset=<s>`): touches, clicks, key presses and setting changes
+  count as input. After that many seconds without any, the page clears its storage and reloads.
 - Theme is always light and fullscreen uses the Fullscreen API.
 - On first load it turns on the winder's "Adaptive puller speed" option (Winder → Config,
   stored in `localStorage`), because the demo line starts in diameter regulation.
 
 ## Worth taking upstream
 
-The Spool animation and the marker dot position fix bugs that the production UI has as well.
+The Spool animation, the marker dot position and the O(1) time series insert fix bugs that the
+production UI has as well.
 
 ## Upstream quirks kept as-is
 

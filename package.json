@@ -2,7 +2,7 @@
   "name": "qitech-control-demo",
   "productName": "QiTech Control Demo",
   "version": "0.1.0",
-  "description": "QiTech Control operator UI in the browser, driven by simulated machines",
+  "description": "QiTech Control operator UI in the browser, driven by machines simulated in the page",
   "private": true,
   "license": "LGPL-3.0-only",
   "type": "module",
@@ -17,25 +17,21 @@
     "node": ">=22.6"
   },
   "scripts": {
-    "dev": "node scripts/dev.mjs",
-    "dev:server": "node --experimental-strip-types --no-warnings=ExperimentalWarning --watch server/main.ts",
-    "dev:ui": "vite --config ui/vite.config.ts",
+    "dev": "vite --config ui/vite.config.ts",
     "build": "npm run build:ui && npm run build:server",
     "build:ui": "vite build --config ui/vite.config.ts",
     "build:server": "tsc -p server/tsconfig.json",
+    "preview": "vite preview --config ui/vite.config.ts",
     "start": "node dist-server/main.js",
     "test": "vitest run",
-    "typecheck": "tsc -p server/tsconfig.json --noEmit",
-    "format": "prettier --check server test scripts",
-    "format:write": "prettier --write server test scripts"
+    "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p backend/tsconfig.json",
+    "format": "prettier --check server backend test scripts",
+    "format:write": "prettier --write server backend test scripts"
   },
   "overrides": {
     "glob": "^13.0.0"
   },
-  "dependencies": {
-    "socket.io": "^4.8.1",
-    "socket.io-msgpack-parser": "^3.0.2"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@icons-pack/react-simple-icons": "^13.12.0",

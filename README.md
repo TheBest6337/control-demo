@@ -6,8 +6,10 @@ the EtherCAT subdevices and the Modbus port.
 
 - `ui/` is the real renderer from [`control/electron`](https://github.com/qitechgmbh/control),
   vendored with a handful of browser patches (see [ui-patches.md](ui-patches.md)).
-- `server/` is a Node.js mock of `qitech_control`. It speaks the same legacy REST and
-  Socket.IO (msgpack) API on one port and also serves the built UI.
+- `backend/` is a mock of `qitech_control` that **runs in the browser**. The UI's Socket.IO
+  client and its REST calls are wired to it in memory, so the demo is a static site: after
+  loading its files it makes no network requests, and every visitor runs their own line.
+- `server/` is a tiny static file server for the kiosk and `npm start`. Any web host works too.
 - `nix/` is a NixOS module plus a kiosk configuration: the machine boots straight into the
   full-screen demo.
 
@@ -31,46 +33,50 @@ diameter leave the tolerance band.
 - Modbus shows three serial ports.
 - Troubleshoot → *Restart Backend Process* emulates a restart. *Reboot HMI Panel* resets the whole demo.
 
-**One hour of history.** At startup, and after every reset, the server runs the simulation
-through the past hour. Every graph opens with a full hour of data, and the UI keeps all
+**One hour of history.** On page load the backend runs the simulation through the past hour,
+which takes about 0.2 s. Every graph opens with a full hour of data, and the UI keeps all
 machines subscribed from the start, so no page opens empty. That hour follows a scripted shift
-(`server/timeline.ts`): spool changes, a screw speed step, a nozzle temperature change and
+(`backend/timeline.ts`): spool changes, a screw speed step, a nozzle temperature change and
 masterbatch added. Four of these events carry graph markers inside the default 30‑minute
 window: nozzle temperature, masterbatch, new spool and quality check. The demo opens on the
 winder's control page.
 
-**Idle reset.** After 60 s without a touch, click, key press or setting change in any
-connected browser, the demo returns to its initial state. Every browser reloads on the start
+**Idle reset** (kiosk). With `?idleReset=60` in the URL, the demo returns to its initial state
+after 60 s without a touch, click, key press or setting change: the page reloads on the start
 page with presets and local settings cleared, so the next visitor finds the line running as
-expected. Set the delay with `DEMO_IDLE_RESET_S` (NixOS: `idleResetSeconds`).
+expected. Off by default, so website visitors are never reset (NixOS: `idleResetSeconds`).
 
-**Scenarios.** `DEMO_SCENARIO=running` (default) starts with a warm line producing 1.75 mm
-filament. `cold` starts everything in Standby at ambient temperature, as after power-on.
+**Scenarios.** The default starts with a warm line producing 1.75 mm filament. `?scenario=cold`
+starts everything in Standby at ambient temperature, as after power-on.
 
 ## Development
 
 ```bash
 npm install
-npm run dev        # mock on :3001 (watch mode) + Vite on http://localhost:5173
+npm run dev        # Vite on http://localhost:5173
 npm test           # simulations vs. the UI's own zod schemas and mutation lists
-npm run build      # ui/dist + dist-server
-npm start          # everything on http://localhost:3001
+npm run build      # ui/dist (the static site) + dist-server
+npm start          # serves ui/dist on http://localhost:3001
 ```
 
-Environment variables for the server:
+### Hosting on a website
 
-| Variable | Default | |
+`npm run build` and upload `ui/dist/` to any static host, at any path (e.g.
+`https://example.com/control-demo/`). Asset URLs are relative and the UI routes in memory,
+so no rewrite rules are needed. The page loads its own files and nothing else: no API, no
+websocket, no tracking.
+
+URL parameters:
+
+| Parameter | Default | |
 |---|---|---|
-| `PORT` | `3001` | |
-| `HOST` | `0.0.0.0` | |
-| `DEMO_SCENARIO` | `running` | `running` or `cold` |
-| `DEMO_IDLE_RESET_S` | `60` | back to the initial state after N s without input (touch, click, key or setting) in any browser; 0 disables |
-| `DEMO_RESTART_DOWNTIME_MS` | `2500` | how long an emulated backend restart takes |
-| `DEMO_HISTORY_S` | `3600` | pre-filled graph history |
-| `DEMO_HISTORY_INTERVAL_MS` | `2000` | history sample spacing |
-| `DEMO_STATIC_DIR` | `ui/dist` | built UI |
+| `scenario` | `running` | `running` or `cold` |
+| `idleReset` | `0` | back to the initial state after N s without input; 0 disables (use it on kiosks) |
 
-Requires Node ≥ 22.6 for `npm run dev`, which runs the server's TypeScript directly. Use Node 24 for everything; the Nix dev shell provides it: `nix develop`.
+The static server (`npm start`, NixOS) reads `PORT` (default `3001`), `HOST` (`0.0.0.0`) and
+`DEMO_STATIC_DIR` (`ui/dist`).
+
+Use Node 24; the Nix dev shell provides it: `nix develop`.
 
 ## NixOS kiosk
 
@@ -101,7 +107,7 @@ The flake provides:
             kiosk.enable = true;          # full-screen browser on the local display
             scenario = "running";         # or "cold"
             idleResetSeconds = 60;        # back to the running line when nobody touches it
-            openFirewall = false;         # true: other devices can open http://<pc>:3001
+            openFirewall = false;         # true: other devices can open http://<pc>:3001 (each runs its own line)
           };
         }
       ];
@@ -113,7 +119,7 @@ The flake provides:
 ### Build and run
 
 ```bash
-nix build .#default && ./result/bin/qitech-control-demo   # server only
+nix build .#default && ./result/bin/qitech-control-demo   # web server only
 nix run .#nixosConfigurations.kiosk-vm.config.system.build.vm  # kiosk in a VM (Linux)
 nix build .#iso                                            # USB image → result/iso/*.iso
 sudo nixos-rebuild switch --flake .#kiosk                  # on an installed demo PC
@@ -129,6 +135,6 @@ scripts/sync-ui.sh ../control   # copies control/electron and re-applies the pat
 npm test                        # fails if a machine's state/live payload or mutations changed
 ```
 
-If a test fails, update the simulation in `server/sim/` to the new fields. The tests parse
+If a test fails, update the simulation in `backend/sim/` to the new fields. The tests parse
 every payload with the UI's own schemas, and every mutation name in the machine hooks must be
 handled.

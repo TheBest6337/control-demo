@@ -10,6 +10,7 @@ import { mainNamespaceStore } from "@/client/mainNamespace";
 import { serializeNamespaceId, useSocketioStore } from "@/client/socketioStore";
 import type { NamespaceId } from "@/client/socketioStore";
 import { useMarkerStore } from "@/stores/markerStore";
+import { getBackend } from "@backend/browser.ts";
 import {
   aquapath1MessageHandler,
   createAquapath1NamespaceStore,
@@ -90,10 +91,10 @@ prewarm();
 
 // ---------------------------------------------------------------- markers
 //
-// The server pre-fills an hour of history from a scripted shift
-// (server/timeline.ts: new spools, temperature change, masterbatch, …) and
+// The backend pre-fills an hour of history from a scripted shift
+// (backend/timeline.ts: new spools, temperature change, masterbatch, …) and
 // publishes the matching graph markers. Put them into the UI's marker store
-// next to whatever a visitor adds, replacing those of an earlier server run.
+// next to whatever a visitor adds, replacing those of an earlier page load.
 
 type DemoMarker = {
   graph: string;
@@ -104,15 +105,8 @@ type DemoMarker = {
 
 const SEEDED_KEY = "control-demo-seeded-markers";
 
-async function seedMarkers() {
-  let markers: DemoMarker[] = [];
-  try {
-    const res = await fetch(`${window.location.origin}/demo/markers`);
-    if (!res.ok) return;
-    markers = (await res.json()).markers;
-  } catch {
-    return;
-  }
+function seedMarkers() {
+  const markers: DemoMarker[] = getBackend().markers;
   const store = useMarkerStore.getState();
   let previous: DemoMarker[] = [];
   try {
@@ -140,4 +134,4 @@ async function seedMarkers() {
   }
 }
 
-void seedMarkers();
+seedMarkers();

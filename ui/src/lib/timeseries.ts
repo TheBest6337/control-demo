@@ -1,5 +1,3 @@
-import { produce } from "immer";
-
 /**
  * Interface for a single data point
  */
@@ -198,6 +196,31 @@ export function seriesToUPlotData(
 }
 
 /**
+ * control-demo: ring buffers this module copied and may write in place. A
+ * buffer it does not own (a series' initial state, shared by every store
+ * created from it) or one that immer froze elsewhere is copied first.
+ */
+const ownedBuffers = new WeakSet<(TimeSeriesValue | null)[]>();
+
+function pushSample(series: Series, value: TimeSeriesValue): Series {
+  let values = series.values;
+  if (!ownedBuffers.has(values) || Object.isFrozen(values)) {
+    values = values.slice();
+    ownedBuffers.add(values);
+  }
+  const old = values[series.index];
+  const overwriting = !!old && old.timestamp > 0;
+  values[series.index] = value;
+  return {
+    ...series,
+    values,
+    index: (series.index + 1) % series.size,
+    lastTimestamp: value.timestamp,
+    validCount: overwriting ? series.validCount : series.validCount + 1,
+  };
+}
+
+/**
  * Factory function to create a new time series with circular buffers
  * @param config Optional configuration object. If omitted or partial, defaults from DEFAULT_TIMESERIES_CONFIG are used.
  */
@@ -238,44 +261,20 @@ export const createTimeSeries = (
     },
   };
 
+  // control-demo: insert in O(1). Upstream wraps this in immer's produce(),
+  // which copies and freezes the whole ring buffer (3600 entries for `long`)
+  // on every sample: replaying an hour of history then blocks the page for
+  // many seconds. The series objects are still new on every insert (React
+  // and the graphs see the change); only the ring buffer array is written in
+  // place, once this module has its own copy of it.
   const insert = (series: TimeSeries, value: TimeSeriesValue): TimeSeries => {
-    return produce(series, (draft) => {
-      draft.current = value;
-
-      // Insert into short buffer only if enough time has passed (downsampling)
-      const shortSampleInterval = draft.short.sampleInterval;
-      const timeSinceLastShort = value.timestamp - draft.short.lastTimestamp;
-
-      if (timeSinceLastShort >= shortSampleInterval) {
-        const shortOldValue = draft.short.values[draft.short.index];
-        const isShortOverwriting = shortOldValue && shortOldValue.timestamp > 0;
-
-        draft.short.values[draft.short.index] = value;
-        draft.short.index = (draft.short.index + 1) % draft.short.size;
-        draft.short.lastTimestamp = value.timestamp;
-
-        if (!isShortOverwriting) {
-          draft.short.validCount++;
-        }
-      }
-
-      // Insert into long buffer only if enough time has passed (downsampling)
-      const longSampleInterval = draft.long.sampleInterval;
-      const timeSinceLastLong = value.timestamp - draft.long.lastTimestamp;
-
-      if (timeSinceLastLong >= longSampleInterval) {
-        const longOldValue = draft.long.values[draft.long.index];
-        const isLongOverwriting = longOldValue && longOldValue.timestamp > 0;
-
-        draft.long.values[draft.long.index] = value;
-        draft.long.index = (draft.long.index + 1) % draft.long.size;
-        draft.long.lastTimestamp = value.timestamp;
-
-        if (!isLongOverwriting) {
-          draft.long.validCount++;
-        }
-      }
-    });
+    let { short, long } = series;
+    // Insert into each buffer only if enough time has passed (downsampling)
+    if (value.timestamp - short.lastTimestamp >= short.sampleInterval)
+      short = pushSample(short, value);
+    if (value.timestamp - long.lastTimestamp >= long.sampleInterval)
+      long = pushSample(long, value);
+    return { current: value, short, long };
   };
 
   return { initialTimeSeries, insert };

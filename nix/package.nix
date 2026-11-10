@@ -44,7 +44,8 @@ buildNpmPackage (finalAttrs: {
 
   nativeBuildInputs = [ makeWrapper ];
 
-  # `npm run build`: vite build of ui/ + tsc of server/
+  # `npm run build`: vite build of ui/ (with the in-browser simulation in
+  # backend/) + tsc of the static file server in server/
   doCheck = true;
   checkPhase = ''
     runHook preCheck
@@ -55,11 +56,9 @@ buildNpmPackage (finalAttrs: {
   installPhase = ''
     runHook preInstall
 
-    npm prune --omit=dev --no-audit --no-fund
-
     appdir=$out/share/qitech-control-demo
     mkdir -p $appdir/ui
-    cp -r package.json dist-server node_modules $appdir/
+    cp -r package.json dist-server $appdir/
     cp -r ui/dist $appdir/ui/dist
 
     makeWrapper ${nodejs_24}/bin/node $out/bin/qitech-control-demo \
