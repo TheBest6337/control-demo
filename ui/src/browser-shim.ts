@@ -9,10 +9,14 @@
 
 import { getBackend, resetDemo } from "@backend/browser.ts";
 import { seedDemoPresets } from "./demo/presets";
+import {
+  createDemoNixos,
+  createDemoUpdate,
+  demoEnvironment,
+} from "./demo/updates";
 
 const ok = async () => ({ success: true });
 const noop = async () => {};
-const UNAVAILABLE = "Software updates are not available in the demo.";
 
 function download(params: {
   suggestedName: string;
@@ -109,45 +113,9 @@ if (!("themeMode" in window)) {
         }
       },
     },
-    environment: {
-      getInfo: async () => ({ qitechOs: false }),
-    },
-    nixos: {
-      isNixOSAvailable: false,
-      listGenerations: async () => [],
-      setGeneration: noop,
-      deleteGeneration: noop,
-      deleteAllOldGenerations: noop,
-    },
-    update: (() => {
-      let fetchTargetsCb: ((r: unknown) => void) | undefined;
-      let changelogCb: ((r: unknown) => void) | undefined;
-      let endCb:
-        | ((r: { success: boolean; error?: string }) => void)
-        | undefined;
-      return {
-        execute: async () => endCb?.({ success: false, error: UNAVAILABLE }),
-        fetchTargets: async () => fetchTargetsCb?.(UNAVAILABLE),
-        fetchChangelog: async () => changelogCb?.(UNAVAILABLE),
-        cancel: ok,
-        checkLatestRelease: async () => ({ latest: null }),
-        onLog: () => {},
-        onEnd: (cb: typeof endCb) => {
-          endCb = cb;
-        },
-        onStep: () => {},
-        onFetchTargetsRecv: async (cb: typeof fetchTargetsCb) => {
-          fetchTargetsCb = cb;
-        },
-        onFetchChangelog: async (cb: typeof changelogCb) => {
-          changelogCb = cb;
-        },
-        hasToken: async () => false,
-        saveToken: async () => ({ success: false, error: UNAVAILABLE }),
-        loadTokenFromFile: async () => ({ success: false, error: UNAVAILABLE }),
-        clearToken: ok,
-      };
-    })(),
+    environment: demoEnvironment,
+    nixos: createDemoNixos(),
+    update: createDemoUpdate(),
     troubleshoot: {
       // "Reboot HMI" brings the whole demo back to its initial state
       rebootHmi: async () => {

@@ -46,7 +46,7 @@ There is no server: `backend/` (the simulated `qitech_control`) is bundled into 
   starts a fresh simulation.
 - **EtherCAT ON/OFF toggle**: takes effect on the next restart.
 - **Export logs / graph export**: browser download.
-- **Update**: tabs stay visible; fetching versions reports that updates are unavailable in the demo.
+- **Update** (`demo/updates.ts`): lists control's versions, branches and master commits with their changelogs from a snapshot (`demo/control-versions.json`, written by `scripts/snapshot-versions.mjs` during `sync-ui.sh`, loaded on first use). The current version is `ui/UPSTREAM`; "Installed Versions" shows it and the two releases before it. "Apply Update" explains in the terminal that the demo installs nothing.
 - **Idle reset** (only with `?idleReset=<s>`): touches, clicks, key presses and setting changes
   count as input. After that many seconds without any, the page clears its storage and reloads.
 - Theme is always light and fullscreen uses the Fullscreen API.

@@ -46,6 +46,10 @@ after 150 s (2.5 min) without a touch, click, key press or setting change: the p
 page with presets and local settings cleared, so the next visitor finds the line running as
 expected. Off by default, so website visitors are never reset (NixOS: `idleResetSeconds`).
 
+**Update page.** Setup → Update works like on a panel: the versions, branches and master commits of
+qitechgmbh/control with their changelogs, from a snapshot taken at the last UI sync
+(`scripts/snapshot-versions.mjs`). Applying an update explains that the demo installs nothing.
+
 **Example presets.** Extruder, winder and laser each come with *PLA 1.75 mm*, *PETG 1.75 mm*
 and *ABS 2.85 mm* presets (`ui/src/demo/presets.ts`). Applying the same material on all three
 switches the line to it: the winder's diameter regulation brings the laser back into tolerance

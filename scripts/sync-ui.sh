@@ -94,3 +94,6 @@ cp "$src/package-lock.json" "$here/package-lock.json"
 rev="$(git -C "$control" rev-parse HEAD)"
 echo "synced from $control @ $rev"
 echo "$rev" > "$dst/UPSTREAM"
+
+# 5. versions and changelogs for Setup → Update (ui/src/demo/updates.ts)
+node "$here/scripts/snapshot-versions.mjs" "$control"
