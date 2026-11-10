@@ -125,6 +125,16 @@ nix build .#iso                                            # USB image → resul
 sudo nixos-rebuild switch --flake .#kiosk                  # on an installed demo PC
 ```
 
+### Switching a QiTech Control panel to the demo
+
+In control's update page, point the update source at this repository. The updater clones
+it to `/home/qitech/control-demo` and runs [`nixos-install.sh`](nixos-install.sh), which
+builds `nixosConfigurations.nixos` ([`nix/panel.nix`](nix/panel.nix)) and reboots into the
+kiosk. The panel keeps its hardware configuration, hostname, `qitech` user and stateVersion.
+
+Back to control: pick an older generation in the boot menu, or run
+`cd /home/qitech/control && ./nixos-install.sh` (SSH or a terminal).
+
 Touch panels work without a system on-screen keyboard: the UI brings its own
 (`components/touch/TouchNumpad.tsx`, `TouchKeyboard.tsx`).
 

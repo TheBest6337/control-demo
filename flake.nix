@@ -85,6 +85,19 @@
       );
 
       nixosConfigurations = {
+        # a QiTech Control panel switched to the demo: control's updater runs
+        # ./nixos-install.sh, which builds this configuration
+        nixos = nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [
+            ./nix/panel.nix
+            hardware
+            {
+              system.nixos.label = "control-demo_${self.shortRev or self.dirtyShortRev or "local"}";
+            }
+          ];
+        };
+
         # `nixos-rebuild switch --flake .#kiosk` on the demo PC
         kiosk = nixpkgs.lib.nixosSystem {
           system = "x86_64-linux";
