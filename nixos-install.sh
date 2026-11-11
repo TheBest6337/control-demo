@@ -9,9 +9,12 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # --impure: the configuration reads /etc/nixos/hardware-configuration.nix
+# --option substituters: use only cache.nixos.org, not the qitech.cachix.org
+# that control's configuration adds (its downloads break off on panel networks)
 sudo nixos-rebuild boot \
   --flake .#nixos \
   --impure \
+  --option substituters https://cache.nixos.org \
   --show-trace \
   -L
 
